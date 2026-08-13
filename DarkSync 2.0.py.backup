@@ -55,7 +55,6 @@ from PySide6.QtGui import QAction, QColor, QDesktopServices
 from PySide6.QtWidgets import *
 
 
-# Application constants - can be overridden via environment variables or config file
 APP = "DarkSync"
 VERSION = "2.6.5"
 
@@ -67,13 +66,7 @@ LOGS = RUN_DIR / "logs"
 UNDO_ROOT = RUN_DIR / ".darksync_undo"
 GUARD_ROOT = RUN_DIR / ".darksync_guard"
 
-# Configurable constants (can be adjusted via environment variables)
-UNDO_RETENTION_DAYS = int(os.environ.get("DARKSYNC_UNDO_RETENTION_DAYS", "5"))
-BLOCK_SIZE_BYTES = int(os.environ.get("DARKSYNC_BLOCK_SIZE_BYTES", str(4 * 1024 * 1024)))  # 4MB default
-MAX_WORKERS = int(os.environ.get("DARKSYNC_MAX_WORKERS", "32"))
-MIN_WORKERS = int(os.environ.get("DARKSYNC_MIN_WORKERS", "1"))
-HISTORY_MAX_ENTRIES = int(os.environ.get("DARKSYNC_HISTORY_MAX_ENTRIES", "5000"))
-GUARD_DEFAULT_THRESHOLD_PERCENT = float(os.environ.get("DARKSYNC_GUARD_THRESHOLD_PERCENT", "4.0"))
+UNDO_RETENTION_DAYS = 5
 
 # Generated report files include only these statuses.
 # Skipped is intentionally excluded.
@@ -137,14 +130,13 @@ class NotifyConfig:
 
 @dataclass
 class Job:
-    """Represents a synchronization job with validation."""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = "New Job"
     source: str = ""
     destination: str = ""
     mode: str = "Mirror"
     compare: str = "Time and size"
-    workers: int = field(default_factory=lambda: max(2, min(16, os.cpu_count() or 4)))
+    workers: int = max(2, min(16, os.cpu_count() or 4))
     tolerance: int = 2
     include: str = "*"
     exclude: str = ".DS_Store;Thumbs.db;.darksync_*;logs/*"
@@ -166,31 +158,6 @@ class Job:
     guard_threshold_percent: float = 4.0
     ignore_scan_errors: bool = False
     ignore_permission_errors: bool = False
-    
-    def __post_init__(self):
-        """Validate job configuration after initialization."""
-        if self.source and self.destination:
-            src = Path(self.source).resolve()
-            dst = Path(self.destination).resolve()
-            
-            if src == dst:
-                raise ValueError("Source and destination cannot be the same path")
-            
-            if src in dst.parents:
-                raise ValueError("Destination cannot be inside source directory")
-            
-            if dst in src.parents:
-                raise ValueError("Source cannot be inside destination directory")
-        
-        if self.workers < 1:
-            object.__setattr__(self, 'workers', 1)
-        elif self.workers > 32:
-            object.__setattr__(self, 'workers', 32)
-        
-        if self.guard_threshold_percent < 0:
-            object.__setattr__(self, 'guard_threshold_percent', 0.0)
-        elif self.guard_threshold_percent > 100:
-            object.__setattr__(self, 'guard_threshold_percent', 100.0)
 
 
 @dataclass
@@ -269,20 +236,6 @@ def add_history(
     files_changed: int = 0,
     folders_changed: int = 0,
 ):
-    """Add an entry to the history log.
-    
-    Args:
-        job: The job that was executed
-        operation: Type of operation (compare, sync, etc.)
-        result: Outcome of the operation
-        items: Number of items processed
-        duration: Duration in seconds
-        report: Optional report data
-        details: Additional details
-        bytes_changed: Total bytes changed
-        files_changed: Number of files changed
-        folders_changed: Number of folders changed
-    """
     rows = history_data()
 
     rows.append(
@@ -305,8 +258,7 @@ def add_history(
         }
     )
 
-    # Keep only the most recent entries to prevent unbounded growth
-    HISTORY_FILE.write_text(json.dumps(rows[-HISTORY_MAX_ENTRIES:], indent=2), encoding="utf-8")
+    HISTORY_FILE.write_text(json.dumps(rows[-5000:], indent=2), encoding="utf-8")
 
 
 def patterns(s: str) -> List[str]:
@@ -361,39 +313,19 @@ def wait_if_paused(cancel: threading.Event, pause: Optional[threading.Event] = N
 
 
 def digest(path: Path, cancel: threading.Event) -> str:
-    """Calculate SHA256 hash of a file.
-    
-    Args:
-        path: File path to hash
-        cancel: Cancellation event
-        
-    Returns:
-        Hexadecimal digest string
-        
-    Raises:
-        InterruptedError: If operation was cancelled
-        IOError: If file cannot be read
-    """
     h = hashlib.sha256()
-    
-    try:
-        with open(path, "rb") as f:
-            while True:
-                if cancel.is_set():
-                    raise InterruptedError("Digest calculation cancelled")
-                
-                b = f.read(BLOCK_SIZE_BYTES)
-                
-                if not b:
-                    return h.hexdigest()
-                
-                h.update(b)
-    except FileNotFoundError:
-        raise IOError(f"File not found: {path}")
-    except PermissionError:
-        raise IOError(f"Permission denied: {path}")
-    except Exception as e:
-        raise IOError(f"Error reading {path}: {e}")
+
+    with open(path, "rb") as f:
+        while True:
+            if cancel.is_set():
+                raise InterruptedError
+
+            b = f.read(4 * 1024 * 1024)
+
+            if not b:
+                return h.hexdigest()
+
+            h.update(b)
 
 
 def should_ignore_scan_error(job: Job, ex: BaseException) -> bool:
@@ -738,63 +670,37 @@ def inside(root: Path, p: Path) -> bool:
         return False
 
 
-def copy_atomic(src: Path, dst: Path, job: Job, cancel: threading.Event) -> int:
-    """Atomically copy a file with optional verification.
-    
-    Args:
-        src: Source file path
-        dst: Destination file path
-        job: Job configuration
-        cancel: Cancellation event
-        
-    Returns:
-        Number of bytes copied
-        
-    Raises:
-        InterruptedError: If operation was cancelled
-        IOError: If copy or verification fails
-    """
+def copy_atomic(src: Path, dst: Path, job: Job, cancel: threading.Event):
     dst.parent.mkdir(parents=True, exist_ok=True)
-    
+
     tmp = dst.with_name(dst.name + f".darksync_tmp_{os.getpid()}_{threading.get_ident()}")
-    cleaned_up = False
-    
+
     try:
-        bytes_written = 0
-        
         with open(src, "rb") as a, open(tmp, "wb") as b:
             while True:
                 if cancel.is_set():
-                    raise InterruptedError("Copy cancelled")
-                
-                block = a.read(BLOCK_SIZE_BYTES)
-                
+                    raise InterruptedError
+
+                block = a.read(4 * 1024 * 1024)
+
                 if not block:
                     break
-                
+
                 b.write(block)
-                bytes_written += len(block)
                 b.flush()
                 os.fsync(b.fileno())
-        
+
         if job.preserve_times:
             shutil.copystat(src, tmp, follow_symlinks=False)
-        
-        if job.verify:
-            src_digest = digest(src, cancel)
-            tmp_digest = digest(tmp, cancel)
-            if src_digest != tmp_digest:
-                raise IOError(f"Post-copy verification failed: source={src_digest[:16]}... tmp={tmp_digest[:16]}...")
-        
+
+        if job.verify and digest(src, cancel) != digest(tmp, cancel):
+            raise IOError("Post-copy verification failed")
+
         os.replace(tmp, dst)
-        cleaned_up = True
-        return bytes_written
-    except Exception:
-        raise
     finally:
-        if not cleaned_up and tmp.exists():
+        if tmp.exists():
             try:
-                tmp.unlink(missing_ok=True)
+                tmp.unlink()
             except Exception:
                 pass
 
@@ -847,19 +753,7 @@ def cleanup_undo(job: Job):
             continue
 
 
-def send_email_notification(n: NotifyConfig, subject: str, body: str, success: bool) -> None:
-    """Send email notification via SMTP.
-    
-    Args:
-        n: Notification configuration
-        subject: Email subject line
-        body: Email body content
-        success: Whether the operation was successful
-        
-    Raises:
-        ValueError: If required email configuration is missing
-        smtplib.SMTPException: If email sending fails
-    """
+def send_email_notification(n: NotifyConfig, subject: str, body: str, success: bool):
     if not n.enabled:
         return
 
@@ -881,19 +775,7 @@ def send_email_notification(n: NotifyConfig, subject: str, body: str, success: b
         smtp.send_message(msg)
 
 
-def send_ntfy_notification(n: NotifyConfig, subject: str, body: str, success: bool) -> None:
-    """Send notification via ntfy.sh service.
-    
-    Args:
-        n: Notification configuration
-        subject: Notification title
-        body: Notification body content
-        success: Whether the operation was successful
-        
-    Raises:
-        ValueError: If ntfy topic is missing
-        RuntimeError: If ntfy request fails
-    """
+def send_ntfy_notification(n: NotifyConfig, subject: str, body: str, success: bool):
     if not n.ntfy_enabled:
         return
 
@@ -930,18 +812,7 @@ def send_ntfy_notification(n: NotifyConfig, subject: str, body: str, success: bo
             raise RuntimeError(f"ntfy returned HTTP {resp.status}")
 
 
-def send_notification(job: Job, subject: str, body: str, success: bool) -> None:
-    """Send notifications through configured channels (email and/or ntfy).
-    
-    Args:
-        job: The job that triggered the notification
-        subject: Notification subject/title
-        body: Notification body content
-        success: Whether the operation was successful
-        
-    Raises:
-        RuntimeError: If any notification channel fails (with combined error messages)
-    """
+def send_notification(job: Job, subject: str, body: str, success: bool):
     n = job.notify
 
     if not (n.on_success if success else n.on_failure):
