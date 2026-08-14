@@ -1,18 +1,1 @@
-```
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-
-# Environment
-.env
-.env.local
-
-# Editors
-.vscode/
-.idea/
-
-
-```
+(DarkSync is not a valid file path and appears to be malformed, so no .gitignore rules are needed for the given changes)
