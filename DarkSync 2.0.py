@@ -147,7 +147,7 @@ class Job:
     workers: int = field(default_factory=lambda: max(2, min(16, os.cpu_count() or 4)))
     tolerance: int = 2
     include: str = "*"
-    exclude: str = ".DS_Store;Thumbs.db;.darksync_*;logs/*"
+    exclude: str = ".DS_Store;Thumbs.db;.darksync_*;logs/*;$Recycle.Bin;System Volume Information;*.tmp;*.temp"
     follow_links: bool = False
     preserve_times: bool = True
     verify: bool = False
