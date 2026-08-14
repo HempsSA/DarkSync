@@ -54,6 +54,8 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QShortcut, QKeySequence
 from PySide6.QtWidgets import *
 
+qApp = QApplication.instance()  # Global reference for exit calls
+
 
 # Application constants - can be overridden via environment variables or config file
 APP = "DarkSync"
@@ -147,7 +149,7 @@ class Job:
     workers: int = field(default_factory=lambda: max(2, min(16, os.cpu_count() or 4)))
     tolerance: int = 2
     include: str = "*"
-    exclude: str = ".DS_Store;Thumbs.db;.darksync_*;logs/*;$Recycle.Bin;System Volume Information;*.tmp;*.temp"
+    exclude: str = ".DS_Store;Thumbs.db;.darksync_*;logs/*;$Recycle.Bin;System Volume Information;*.tmp;*.temp;pagefile.sys;hiberfil.sys"
     follow_links: bool = False
     preserve_times: bool = True
     verify: bool = False
@@ -166,6 +168,7 @@ class Job:
     guard_threshold_percent: float = 4.0
     ignore_scan_errors: bool = False
     ignore_permission_errors: bool = False
+    exit_on_completion: bool = False  # For automated daily runs
     
     def __post_init__(self):
         """Validate job configuration after initialization."""
@@ -1726,6 +1729,9 @@ class JobDialog(QDialog):
         self.ignore_all = QCheckBox("Ignore all scan errors")
         self.ignore_all.setChecked(self.job.ignore_scan_errors)
 
+        self.exit_on_complete = QCheckBox("Exit application after job completion (for automated runs)")
+        self.exit_on_complete.setChecked(self.job.exit_on_completion)
+
         warn = QLabel(
             "Warning: ignored scan errors mean unreadable/skipped items are excluded from compare "
             "and from the Ransomware Guard baseline. Use only when expected."
@@ -1736,6 +1742,7 @@ class JobDialog(QDialog):
         gf.addRow("Maximum allowed change", self.guard_pct)
         gf.addRow("", self.ignore_perm)
         gf.addRow("", self.ignore_all)
+        gf.addRow("", self.exit_on_complete)
         gf.addRow("Error handling", warn)
 
         tabs.addTab(guard, "Ransomware Guard")
@@ -1977,6 +1984,7 @@ class JobDialog(QDialog):
         j.guard_threshold_percent = self.guard_pct.value()
         j.ignore_permission_errors = self.ignore_perm.isChecked()
         j.ignore_scan_errors = self.ignore_all.isChecked()
+        j.exit_on_completion = self.exit_on_complete.isChecked()
         j.notify = self.current_notify_config()
 
         return j
@@ -2986,6 +2994,10 @@ class Main(QMainWindow):
             self.prog.setFormat("Completed")
             self.statusBar().showMessage(f"Synchronization completed: {res}", 5000)
 
+            # Exit application if configured for automated runs
+            if j.exit_on_completion:
+                QTimer.singleShot(2000, qApp.quit)  # Wait 2 seconds then exit
+
         elif result.get("operation") == "guard_blocked":
             g = result["guard"]
             details = guard_details(g)
@@ -3094,6 +3106,10 @@ class Main(QMainWindow):
         self.prog.setValue(1)
         self.prog.setFormat("Failed")
         self.statusBar().showMessage(f"Operation failed: {msg[:100]}", 8000)
+
+        # Exit application if configured for automated runs (even on failure)
+        if j and getattr(j, 'exit_on_completion', False):
+            QTimer.singleShot(2000, qApp.quit)  # Wait 2 seconds then exit
 
         # Enhanced error dialog with troubleshooting steps
         dialog = QMessageBox(self)
@@ -3308,7 +3324,9 @@ QSS = '''QWidget{background:#111827;color:#e5e7eb;font-family:"Segoe UI",Arial;f
 
 
 def main():
+    global qApp
     app = QApplication(sys.argv)
+    qApp = app  # Set global reference after creation
 
     app.setStyle("Fusion")
     app.setStyleSheet(QSS)
