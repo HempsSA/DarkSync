@@ -17,7 +17,7 @@ A comprehensive folder comparison and synchronization utility built with Python 
 - **Guard System**: Ransomware detection using baseline snapshots with configurable threshold alerts
 - **Notifications**: Email (SMTP) and push notifications (ntfy.sh) support
 - **Conflict Resolution**: Handle file conflicts intelligently
-- **Advanced Filtering**: Include/exclude patterns with glob support
+- **Advanced Filtering**: Include/exclude patterns with glob support (default excludes: `.DS_Store`, `Thumbs.db`, `$Recycle.Bin`, `System Volume Information`, temporary files)
 - **Hash Verification**: SHA256 verification for data integrity
 - **Recycle Bin Support**: Safe deletion with recovery options
 
@@ -88,6 +88,20 @@ Or if frozen as executable:
 ├── .darksync_undo/          # Undo recovery data (generated at runtime)
 └── .darksync_guard/         # Guard baselines (generated at runtime)
 ```
+
+### Default Exclusion Patterns
+
+The following patterns are excluded by default on Windows environments:
+
+- `.DS_Store` - macOS metadata files
+- `Thumbs.db` - Windows thumbnail cache
+- `.darksync_*` - DarkSync internal files
+- `logs/*` - Log directories
+- `$Recycle.Bin` - Windows Recycle Bin
+- `System Volume Information` - Windows system restore points
+- `*.tmp`, `*.temp` - Temporary files
+
+Additional patterns can be added in the job configuration using semicolon-separated glob patterns.
 
 ## Version
 
