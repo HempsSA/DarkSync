@@ -1,5 +1,18 @@
-```markdown
-# Configuration and review files
-INTERFACE_REVIEW.md
-README.md
+```
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+.env.
+
+# Editors
+.vscode/
+.idea/
+
+# Original rules preserved
+*.log
 ```
