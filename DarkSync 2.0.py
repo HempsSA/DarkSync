@@ -2926,6 +2926,12 @@ class Main(QMainWindow):
 
         if result.get("operation") == "compare":
             add_history(j, "Compare", "Success", result.get("items", 0), dur)
+            
+            # Show completion message for compare operation
+            self.prog.setRange(0, 1)
+            self.prog.setValue(1)
+            self.prog.setFormat("Comparison completed")
+            self.statusBar().showMessage(f"Comparison completed: {result.get('items', 0)} items found", 5000)
 
         elif result.get("operation") == "sync":
             sm = result["summary"]
@@ -2973,6 +2979,12 @@ class Main(QMainWindow):
                 send_notification(j, f"DarkSync {res}: {j.name}", json.dumps(sm, indent=2), problems == 0)
             except Exception as ex:
                 self.statusBar().showMessage(f"Notification failed: {ex}", 8000)
+
+            # Show completion message in progress bar and status
+            self.prog.setRange(0, 1)
+            self.prog.setValue(1)
+            self.prog.setFormat("Completed")
+            self.statusBar().showMessage(f"Synchronization completed: {res}", 5000)
 
         elif result.get("operation") == "guard_blocked":
             g = result["guard"]
@@ -3049,6 +3061,12 @@ class Main(QMainWindow):
                 f"Recovered/reversed: {result.get('restored', 0)}\n"
                 f"Errors: {len(result.get('errors', []))}",
             )
+            
+            # Show completion message for undo operation
+            self.prog.setRange(0, 1)
+            self.prog.setValue(1)
+            self.prog.setFormat("Recovery completed")
+            self.statusBar().showMessage(f"Recovery completed: {res}", 5000)
 
         self.save()
         self.reload_history()
@@ -3070,6 +3088,12 @@ class Main(QMainWindow):
                 send_notification(j, f"DarkSync Failed: {j.name}", msg, False)
             except Exception as ex:
                 self.statusBar().showMessage(f"Notification failed: {ex}", 8000)
+
+        # Show failure message in progress bar and status
+        self.prog.setRange(0, 1)
+        self.prog.setValue(1)
+        self.prog.setFormat("Failed")
+        self.statusBar().showMessage(f"Operation failed: {msg[:100]}", 8000)
 
         # Enhanced error dialog with troubleshooting steps
         dialog = QMessageBox(self)
