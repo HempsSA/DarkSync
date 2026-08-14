@@ -51,7 +51,7 @@ from PySide6.QtCore import (
     QTime,
     QUrl,
 )
-from PySide6.QtGui import QAction, QColor, QDesktopServices
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QShortcut, QKeySequence
 from PySide6.QtWidgets import *
 
 
@@ -2148,6 +2148,20 @@ class Main(QMainWindow):
         self.setCentralWidget(w)
         self.setStatusBar(QStatusBar())
 
+        # Add keyboard shortcuts
+        QShortcut(QKeySequence("Ctrl+N"), self, self.new_job)
+        QShortcut(QKeySequence("Ctrl+E"), self, self.edit_job)
+        QShortcut(QKeySequence("Delete"), self, self.delete_job)
+        QShortcut(QKeySequence("F5"), self, self.reload_history)
+        QShortcut(QKeySequence("Ctrl+R"), self, self.run_selected)
+        QShortcut(QKeySequence("Ctrl+Shift+R"), self, self.run_all)
+        QShortcut(QKeySequence("Ctrl+Z"), self, self.undo_recover)
+        QShortcut(QKeySequence("Ctrl+1"), self, lambda: self.tabs.setCurrentIndex(0))  # Dashboard
+        QShortcut(QKeySequence("Ctrl+2"), self, lambda: self.tabs.setCurrentIndex(1))  # Jobs
+        QShortcut(QKeySequence("Ctrl+3"), self, lambda: self.tabs.setCurrentIndex(2))  # Sync
+        QShortcut(QKeySequence("Ctrl+4"), self, lambda: self.tabs.setCurrentIndex(3))  # Results
+        QShortcut(QKeySequence("Ctrl+5"), self, lambda: self.tabs.setCurrentIndex(4))  # History
+
         dash = QWidget()
 
         dv = QVBoxLayout(dash)
@@ -2244,6 +2258,16 @@ class Main(QMainWindow):
         top.addWidget(QLabel("Use toolbar buttons above to create, edit, run, import, and export jobs."))
 
         jv.addLayout(top)
+
+        # Add search box for jobs table
+        search_layout = QHBoxLayout()
+        self.job_search = QLineEdit()
+        self.job_search.setPlaceholderText("🔍 Search jobs by name, source, or destination...")
+        self.job_search.textChanged.connect(self.filter_jobs_table)
+
+        search_layout.addWidget(QLabel("Filter:"))
+        search_layout.addWidget(self.job_search)
+        jv.addLayout(search_layout)
 
         self.jobs_table = QTableWidget(0, 8)
         self.jobs_table.setHorizontalHeaderLabels(
@@ -2356,10 +2380,14 @@ class Main(QMainWindow):
         open_logs = QPushButton("Open report folder")
         open_logs.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(LOGS))))
 
+        export_csv = QPushButton("Export CSV")
+        export_csv.clicked.connect(self.export_results_csv)
+
         rt.addWidget(self.result_summary)
         rt.addStretch()
         rt.addWidget(QLabel("Show"))
         rt.addWidget(self.result_filter)
+        rt.addWidget(export_csv)
         rt.addWidget(open_logs)
 
         rv.addLayout(rt)
@@ -2375,10 +2403,10 @@ class Main(QMainWindow):
         self.results_table.verticalHeader().hide()
         self.results_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.results_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)  # Stretch relative path
         self.results_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.results_table.setColumnWidth(2, 500)
-        self.results_table.setColumnWidth(3, 450)
-        self.results_table.setColumnWidth(4, 450)
+        self.results_table.setColumnWidth(3, 400)
+        self.results_table.setColumnWidth(4, 400)
         self.results_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
 
         rv.addWidget(self.results_table)
@@ -2480,10 +2508,16 @@ class Main(QMainWindow):
                     f"  |  {int(r.get('folders_changed', 0)):,} folders"
                 )
 
-            self.recent_list.addItem(
+            item = QListWidgetItem(
                 f"{icon} {r.get('timestamp', '').replace('T', ' ')}"
                 f"  {r.get('job', '')}  -  {result}{meta}"
             )
+            # Store job_id for click navigation
+            item.setData(Qt.UserRole, r.get('job_id'))
+            self.recent_list.addItem(item)
+
+        # Connect double-click to navigate to job
+        self.recent_list.itemDoubleClicked.connect(self.on_dashboard_item_clicked)
 
         self.upcoming_list.clear()
 
@@ -2505,10 +2539,35 @@ class Main(QMainWindow):
                 upcoming.append((run, j.name, j.scheduler_action))
 
         for run, name, action in sorted(upcoming)[:8]:
-            self.upcoming_list.addItem(f"{run:%Y-%m-%d %H:%M}  {name}  -  {action}")
+            item = QListWidgetItem(f"{run:%Y-%m-%d %H:%M}  {name}  -  {action}")
+            # Store job name for click navigation
+            item.setData(Qt.UserRole, name)
+            self.upcoming_list.addItem(item)
+
+        # Connect double-click to navigate to job
+        self.upcoming_list.itemDoubleClicked.connect(self.on_dashboard_item_clicked)
 
         if not upcoming:
             self.upcoming_list.addItem("No scheduled jobs configured")
+
+    def on_dashboard_item_clicked(self, item):
+        """Navigate to the Jobs tab and select the clicked job."""
+        job_id = item.data(Qt.UserRole)
+        job_name = item.data(Qt.UserRole)  # For upcoming items
+
+        if job_id or job_name:
+            # Switch to Jobs tab
+            self.tabs.setCurrentIndex(1)
+
+            # Find and select the job
+            for row in range(self.jobs_table.rowCount()):
+                row_job_id = self.jobs_table.item(row, 0).data(Qt.UserRole)
+                row_job_name = self.jobs_table.item(row, 0).text()
+
+                if row_job_id == job_id or row_job_name == job_name:
+                    self.jobs_table.selectRow(row)
+                    self.jobs_table.scrollToItem(self.jobs_table.item(row, 0))
+                    break
 
     def set_parallel(self, n):
         self.state.max_parallel_jobs = n
@@ -2545,10 +2604,33 @@ class Main(QMainWindow):
                 if c == 0:
                     it.setData(Qt.UserRole, j.id)
 
+                # Add tooltip for long text
+                if len(str(v)) > 50:
+                    it.setToolTip(str(v))
+
                 self.jobs_table.setItem(r, c, it)
+
+        # Re-apply filter if search text exists
+        if hasattr(self, 'job_search') and self.job_search.text():
+            self.filter_jobs_table(self.job_search.text())
 
         if hasattr(self, "card_jobs"):
             self.refresh_dashboard()
+
+    def filter_jobs_table(self, text):
+        """Filter jobs table based on search text."""
+        text = text.lower()
+
+        for row in range(self.jobs_table.rowCount()):
+            match = False
+
+            for col in range(self.jobs_table.columnCount()):
+                item = self.jobs_table.item(row, col)
+                if item and text in item.text().lower():
+                    match = True
+                    break
+
+            self.jobs_table.setRowHidden(row, not match)
 
     def save(self):
         save_state(self.state)
@@ -2710,7 +2792,25 @@ class Main(QMainWindow):
             self.enqueue_jobs([j])
 
     def run_all(self):
-        self.enqueue_jobs([j for j in self.state.jobs if j.enabled])
+        enabled_jobs = [j for j in self.state.jobs if j.enabled]
+
+        if not enabled_jobs:
+            QMessageBox.information(self, "No jobs", "No enabled jobs to run.")
+            return
+
+        # Show confirmation for bulk execution
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("Confirm Bulk Execution")
+        msg.setText(f"About to run {len(enabled_jobs)} job(s)")
+
+        job_list = "\n".join(f"• {j.name} ({j.mode})" for j in enabled_jobs)
+        msg.setDetailedText(job_list)
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setDefaultButton(QMessageBox.No)
+
+        if msg.exec() == QMessageBox.Yes:
+            self.enqueue_jobs(enabled_jobs)
 
     def enqueue_jobs(self, jobs):
         self.job_queue.extend(jobs)
@@ -2755,12 +2855,8 @@ class Main(QMainWindow):
         self.workers[j.id] = wk
         self.running_jobs.add(j.id)
 
-        # Reset synchronization display for the new job.
-        self.left_scan.setText("Scanning left: Ready")
-        self.right_scan.setText("Scanning right: Ready")
-
         # Prevent animated/indeterminate progress bar.
-        self.prog.setRange(0, 1)
+        self.prog.setRange(0, 0)  # Indeterminate mode for scanning
         self.prog.setValue(0)
         self.prog.hide()
 
@@ -2792,11 +2888,11 @@ class Main(QMainWindow):
             scanning = True
 
         if scanning or not total:
-            # No animated blue/indeterminate bar.
-            self.prog.setRange(0, 1)
+            # Show indeterminate progress during scanning so users know work is happening
+            self.prog.setRange(0, 0)  # Indeterminate mode
             self.prog.setValue(0)
-            self.prog.setFormat(text)
-            self.prog.hide()
+            self.prog.setFormat(f"{text} (working...)")
+            self.prog.show()  # Keep visible during scanning!
         else:
             # Determinate progress for comparing, synchronizing, recovering, etc.
             self.prog.setRange(0, total)
@@ -2975,7 +3071,28 @@ class Main(QMainWindow):
             except Exception as ex:
                 self.statusBar().showMessage(f"Notification failed: {ex}", 8000)
 
-        QMessageBox.critical(self, "Operation failed", msg)
+        # Enhanced error dialog with troubleshooting steps
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Critical)
+        dialog.setWindowTitle("Operation Failed")
+        job_name = j.name if j else "Unknown Job"
+        dialog.setText(f"<b>{job_name}</b> failed")
+        dialog.setInformativeText(msg)
+
+        # Add troubleshooting steps
+        details = "Troubleshooting steps:\n"
+        details += "1. Check source/destination paths exist\n"
+        details += "2. Verify read/write permissions\n"
+        details += "3. Ensure sufficient disk space\n"
+        details += "4. Review logs in: " + str(LOGS)
+
+        dialog.setDetailedText(details)
+        dialog.addButton("Open Logs", QMessageBox.ActionRole)
+        dialog.addButton("Close", QMessageBox.AcceptRole)
+
+        choice = dialog.exec()
+        if choice == 0:  # Open Logs button
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(LOGS)))
 
     def load_report(self, rd):
         self.latest_report_rows = rd.get("items", [])
@@ -3126,6 +3243,41 @@ class Main(QMainWindow):
         if due:
             self.save()
             self.enqueue_jobs(due)
+
+    def export_results_csv(self):
+        """Export current filtered results to CSV file."""
+        if not self.latest_report_rows:
+            QMessageBox.information(self, "No data", "No results to export.")
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export results", str(RUN_DIR / "darksync_results.csv"), "CSV Files (*.csv)"
+        )
+
+        if not path:
+            return
+
+        import csv
+
+        try:
+            with open(path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(["Result", "Action", "Relative path", "Source", "Destination", "Details"])
+
+                for row in self.latest_report_rows:
+                    writer.writerow([
+                        row.get("status", ""),
+                        row.get("action", ""),
+                        row.get("relative", ""),
+                        row.get("source", ""),
+                        row.get("destination", ""),
+                        row.get("details", "")
+                    ])
+
+            QMessageBox.information(self, "Export complete", f"Results exported to:\n{path}")
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
+        except Exception as ex:
+            QMessageBox.critical(self, "Export failed", f"Could not export results:\n{ex}")
 
 
 QSS = '''QWidget{background:#111827;color:#e5e7eb;font-family:"Segoe UI",Arial;font-size:10pt}QMainWindow{background:#0b1220}QLabel#title{font-size:20pt;font-weight:700;color:#f8fafc;padding:4px}QLabel#sectionTitle{font-size:12pt;font-weight:700;color:#f8fafc;padding:6px 2px}QLabel#muted{color:#94a3b8;font-size:10pt}QFrame#panel{background:#172033;border:1px solid #2b3952;border-radius:12px}QFrame#card{background:#172033;border:1px solid #2b3952;border-radius:14px}QFrame#card[tone=green]{border-color:#22c55e}QFrame#card[tone=orange]{border-color:#f59e0b}QFrame#card[tone=red]{border-color:#ef4444}QFrame#card[tone=blue]{border-color:#3b82f6}QLabel#cardTitle{color:#94a3b8;font-size:10pt;font-weight:600}QLabel#cardValue{color:#f8fafc;font-size:26pt;font-weight:800}QListWidget#dashboardList{background:#0f172a;border:1px solid #334155;border-radius:9px;padding:6px}QLabel#scanCard{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px;color:#dbeafe;font-weight:700}QLineEdit,QComboBox,QSpinBox,QTimeEdit{background:#0f172a;border:1px solid #334155;border-radius:7px;padding:8px}QPushButton{background:#263348;border:1px solid #3b4b66;border-radius:7px;padding:8px 14px;font-weight:600}QPushButton:hover{background:#334155}QPushButton#primary{background:#2563eb}QTableView,QTableWidget{background:#111827;alternate-background-color:#151f30;border:1px solid #2b3952;border-radius:10px;gridline-color:#263348}QHeaderView::section{background:#1e293b;color:#cbd5e1;border:0;border-right:1px solid #334155;padding:9px;font-weight:700}QProgressBar{background:#0f172a;border:1px solid #334155;border-radius:6px;text-align:center;min-height:20px;color:#e5e7eb}QProgressBar::chunk{background:#64748b;border-radius:5px}QTabWidget::pane{border:1px solid #2b3952;border-radius:8px}QTabBar::tab{background:#172033;padding:10px 18px;border:1px solid #2b3952}QTabBar::tab:selected{background:#2563eb}QToolBar{background:#111827;border-bottom:1px solid #263348;spacing:4px;padding:6px}QToolBar QToolButton{margin:2px;padding:7px 10px;border-radius:6px}QStatusBar{background:#0b1220;color:#94a3b8}'''
