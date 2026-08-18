@@ -1,4 +1,9 @@
 ```markdown
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
 # Environment
 .env
 .env.local
@@ -35,25 +40,37 @@ htmlcov/
 .vscode/
 .idea/
 
-# Python specific
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg
-*.manifest
-*.spec
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+target/
+.gradle/
 
-# Build outputs
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Compiled files
+*.pyc
 *.class
 *.o
-*.obj
+*.exe
 *.dll
 *.so
 *.a
-*.lib
-*.dylib
+*.obj
+*.out
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
 
 # Compressed files
 *.zip
