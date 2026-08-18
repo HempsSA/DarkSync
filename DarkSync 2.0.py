@@ -51,7 +51,7 @@ from PySide6.QtCore import (
     QTime,
     QUrl,
 )
-from PySide6.QtGui import QAction, QColor, QDesktopServices, QShortcut, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QColor, QDesktopServices, QShortcut, QKeySequence, QPalette, QBrush
 from PySide6.QtWidgets import *
 
 qApp = QApplication.instance()  # Global reference for exit calls
@@ -2114,6 +2114,22 @@ class Main(QMainWindow):
         self.timer.start(15000)
 
     def ui(self):
+        # Create menu bar with Themes menu
+        menubar = self.menuBar()
+        themes_menu = menubar.addMenu("Themes")
+        
+        # Create theme selection group
+        self.theme_group = QActionGroup(self)
+        self.theme_group.setExclusive(True)
+        
+        for theme_name in THEMES.keys():
+            theme_action = QAction(theme_name, self)
+            theme_action.setCheckable(True)
+            theme_action.setChecked(theme_name == "Dark Blue")
+            theme_action.triggered.connect(lambda checked, name=theme_name: self.change_theme(name))
+            self.theme_group.addAction(theme_action)
+            themes_menu.addAction(theme_action)
+        
         tb = QToolBar()
         tb.setMovable(False)
         tb.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
@@ -2717,6 +2733,48 @@ class Main(QMainWindow):
 
         self.save()
 
+    def change_theme(self, theme_name):
+        """Change the application theme."""
+        app = QApplication.instance()
+        if app:
+            stylesheet = get_stylesheet(theme_name)
+            app.setStyleSheet(stylesheet)
+            # Save theme preference
+            config_file = RUN_DIR / "darksync_config.json"
+            try:
+                if config_file.exists():
+                    with open(config_file, "r") as f:
+                        config = json.load(f)
+                else:
+                    config = {}
+                config["theme"] = theme_name
+                with open(config_file, "w") as f:
+                    json.dump(config, f, indent=2)
+            except Exception:
+                pass  # Silently fail if config save fails
+
+    def load_saved_theme(self):
+        """Load and apply saved theme from config."""
+        config_file = RUN_DIR / "darksync_config.json"
+        saved_theme = "Dark Blue"  # Default
+        try:
+            if config_file.exists():
+                with open(config_file, "r") as f:
+                    config = json.load(f)
+                    saved_theme = config.get("theme", "Dark Blue")
+        except Exception:
+            pass
+        
+        # Update the theme group to reflect saved theme
+        for action in self.theme_group.actions():
+            action.setChecked(action.text() == saved_theme)
+        
+        # Apply the saved theme
+        app = QApplication.instance()
+        if app:
+            stylesheet = get_stylesheet(saved_theme)
+            app.setStyleSheet(stylesheet)
+
     def create_startup_task(self):
         if sys.platform != "win32":
             QMessageBox.information(
@@ -3184,6 +3242,10 @@ class Main(QMainWindow):
         self.results_table.resizeRowsToContents()
 
     def reload_history(self):
+        # Load saved theme after UI is initialized
+        if hasattr(self, 'theme_group'):
+            self.load_saved_theme()
+        
         rows = list(reversed(history_data()))
 
         self.history_table.setRowCount(len(rows))
@@ -3315,7 +3377,250 @@ class Main(QMainWindow):
             QMessageBox.critical(self, "Export failed", f"Could not export results:\n{ex}")
 
 
-QSS = '''QWidget{background:#111827;color:#e5e7eb;font-family:"Segoe UI",Arial;font-size:10pt}QMainWindow{background:#0b1220}QLabel#title{font-size:20pt;font-weight:700;color:#f8fafc;padding:4px}QLabel#sectionTitle{font-size:12pt;font-weight:700;color:#f8fafc;padding:6px 2px}QLabel#muted{color:#94a3b8;font-size:10pt}QFrame#panel{background:#172033;border:1px solid #2b3952;border-radius:12px}QFrame#card{background:#172033;border:1px solid #2b3952;border-radius:14px}QFrame#card[tone=green]{border-color:#22c55e}QFrame#card[tone=orange]{border-color:#f59e0b}QFrame#card[tone=red]{border-color:#ef4444}QFrame#card[tone=blue]{border-color:#3b82f6}QLabel#cardTitle{color:#94a3b8;font-size:10pt;font-weight:600}QLabel#cardValue{color:#f8fafc;font-size:26pt;font-weight:800}QListWidget#dashboardList{background:#0f172a;border:1px solid #334155;border-radius:9px;padding:6px}QLabel#scanCard{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:9px;color:#dbeafe;font-weight:700}QLineEdit,QComboBox,QSpinBox,QTimeEdit{background:#0f172a;border:1px solid #334155;border-radius:7px;padding:8px}QPushButton{background:#263348;border:1px solid #3b4b66;border-radius:7px;padding:8px 14px;font-weight:600}QPushButton:hover{background:#334155}QPushButton#primary{background:#2563eb}QTableView,QTableWidget{background:#111827;alternate-background-color:#151f30;border:1px solid #2b3952;border-radius:10px;gridline-color:#263348}QHeaderView::section{background:#1e293b;color:#cbd5e1;border:0;border-right:1px solid #334155;padding:9px;font-weight:700}QProgressBar{background:#0f172a;border:1px solid #334155;border-radius:6px;text-align:center;min-height:20px;color:#e5e7eb}QProgressBar::chunk{background:#64748b;border-radius:5px}QTabWidget::pane{border:1px solid #2b3952;border-radius:8px}QTabBar::tab{background:#172033;padding:10px 18px;border:1px solid #2b3952}QTabBar::tab:selected{background:#2563eb}QToolBar{background:#111827;border-bottom:1px solid #263348;spacing:4px;padding:6px}QToolBar QToolButton{margin:2px;padding:7px 10px;border-radius:6px}QStatusBar{background:#0b1220;color:#94a3b8}'''
+# Theme definitions with different color schemes
+THEMES = {
+    "Dark Blue": {
+        "bg": "#111827",
+        "window_bg": "#0b1220",
+        "text": "#e5e7eb",
+        "title_text": "#f8fafc",
+        "muted": "#94a3b8",
+        "panel_bg": "#172033",
+        "card_bg": "#172033",
+        "border": "#2b3952",
+        "input_bg": "#0f172a",
+        "button_bg": "#263348",
+        "button_hover": "#334155",
+        "primary": "#2563eb",
+        "table_alt": "#151f30",
+        "header_bg": "#1e293b",
+        "header_text": "#cbd5e1",
+        "progress_bg": "#0f172a",
+        "progress_chunk": "#64748b",
+        "tab_bg": "#172033",
+        "tab_selected": "#2563eb",
+        "toolbar_bg": "#111827",
+        "toolbar_border": "#263348",
+        "status_bg": "#0b1220",
+        "status_text": "#94a3b8",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+    "Dark Green": {
+        "bg": "#0f1a12",
+        "window_bg": "#08120a",
+        "text": "#d4e5d8",
+        "title_text": "#f0fff4",
+        "muted": "#8ba892",
+        "panel_bg": "#122518",
+        "card_bg": "#122518",
+        "border": "#1f3d2a",
+        "input_bg": "#0a1f14",
+        "button_bg": "#1a3d28",
+        "button_hover": "#245236",
+        "primary": "#16a34a",
+        "table_alt": "#112a1c",
+        "header_bg": "#153524",
+        "header_text": "#c4dcc8",
+        "progress_bg": "#0a1f14",
+        "progress_chunk": "#4a7c5e",
+        "tab_bg": "#122518",
+        "tab_selected": "#16a34a",
+        "toolbar_bg": "#0f1a12",
+        "toolbar_border": "#1f3d2a",
+        "status_bg": "#08120a",
+        "status_text": "#8ba892",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+    "Dark Orange": {
+        "bg": "#1a140f",
+        "window_bg": "#120d08",
+        "text": "#e5ded8",
+        "title_text": "#fcf8f4",
+        "muted": "#a89a8a",
+        "panel_bg": "#251a12",
+        "card_bg": "#251a12",
+        "border": "#3d2a1f",
+        "input_bg": "#1f140a",
+        "button_bg": "#3d281a",
+        "button_hover": "#523624",
+        "primary": "#ea580c",
+        "table_alt": "#2a1a11",
+        "header_bg": "#352215",
+        "header_text": "#dcd2c4",
+        "progress_bg": "#1f140a",
+        "progress_chunk": "#7c5e4a",
+        "tab_bg": "#251a12",
+        "tab_selected": "#ea580c",
+        "toolbar_bg": "#1a140f",
+        "toolbar_border": "#3d281a",
+        "status_bg": "#120d08",
+        "status_text": "#a89a8a",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+    "Dark Yellow": {
+        "bg": "#1a180f",
+        "window_bg": "#121008",
+        "text": "#e5e2d8",
+        "title_text": "#fcfbf4",
+        "muted": "#a8a28a",
+        "panel_bg": "#252212",
+        "card_bg": "#252212",
+        "border": "#3d361f",
+        "input_bg": "#1f1c0a",
+        "button_bg": "#3d361a",
+        "button_hover": "#524a24",
+        "primary": "#ca8a04",
+        "table_alt": "#2a2611",
+        "header_bg": "#352f15",
+        "header_text": "#dcd8c4",
+        "progress_bg": "#1f1c0a",
+        "progress_chunk": "#7c724a",
+        "tab_bg": "#252212",
+        "tab_selected": "#ca8a04",
+        "toolbar_bg": "#1a180f",
+        "toolbar_border": "#3d361a",
+        "status_bg": "#121008",
+        "status_text": "#a8a28a",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+    "Midnight Purple": {
+        "bg": "#140f1a",
+        "window_bg": "#0d0812",
+        "text": "#ddd4e5",
+        "title_text": "#f4f0fc",
+        "muted": "#9a8aa8",
+        "panel_bg": "#1f1525",
+        "card_bg": "#1f1525",
+        "border": "#33223d",
+        "input_bg": "#140a1f",
+        "button_bg": "#2a1a3d",
+        "button_hover": "#3d2452",
+        "primary": "#7c3aed",
+        "table_alt": "#1a112a",
+        "header_bg": "#2a1535",
+        "header_text": "#d4c4dc",
+        "progress_bg": "#140a1f",
+        "progress_chunk": "#6a4a7c",
+        "tab_bg": "#1f1525",
+        "tab_selected": "#7c3aed",
+        "toolbar_bg": "#140f1a",
+        "toolbar_border": "#2a1a3d",
+        "status_bg": "#0d0812",
+        "status_text": "#9a8aa8",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+    "Ocean Teal": {
+        "bg": "#0f1a1c",
+        "window_bg": "#081214",
+        "text": "#d4e5e8",
+        "title_text": "#f0fdfc",
+        "muted": "#8aa8ac",
+        "panel_bg": "#122528",
+        "card_bg": "#122528",
+        "border": "#1f3d42",
+        "input_bg": "#0a1f22",
+        "button_bg": "#1a3d42",
+        "button_hover": "#245258",
+        "primary": "#0d9488",
+        "table_alt": "#112a2d",
+        "header_bg": "#15353a",
+        "header_text": "#c4dcdc",
+        "progress_bg": "#0a1f22",
+        "progress_chunk": "#4a7c82",
+        "tab_bg": "#122528",
+        "tab_selected": "#0d9488",
+        "toolbar_bg": "#0f1a1c",
+        "toolbar_border": "#1a3d42",
+        "status_bg": "#081214",
+        "status_text": "#8aa8ac",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+    "Slate Gray": {
+        "bg": "#14161a",
+        "window_bg": "#0d0f12",
+        "text": "#d8dade",
+        "title_text": "#f4f6fa",
+        "muted": "#8f94a0",
+        "panel_bg": "#1d2026",
+        "card_bg": "#1d2026",
+        "border": "#2f343d",
+        "input_bg": "#12151a",
+        "button_bg": "#262a33",
+        "button_hover": "#333842",
+        "primary": "#475569",
+        "table_alt": "#171a20",
+        "header_bg": "#22262f",
+        "header_text": "#c8ccd4",
+        "progress_bg": "#12151a",
+        "progress_chunk": "#5a6270",
+        "tab_bg": "#1d2026",
+        "tab_selected": "#475569",
+        "toolbar_bg": "#14161a",
+        "toolbar_border": "#262a33",
+        "status_bg": "#0d0f12",
+        "status_text": "#8f94a0",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+    "High Contrast": {
+        "bg": "#000000",
+        "window_bg": "#000000",
+        "text": "#ffffff",
+        "title_text": "#ffffff",
+        "muted": "#cccccc",
+        "panel_bg": "#1a1a1a",
+        "card_bg": "#1a1a1a",
+        "border": "#444444",
+        "input_bg": "#0a0a0a",
+        "button_bg": "#2a2a2a",
+        "button_hover": "#444444",
+        "primary": "#0066cc",
+        "table_alt": "#111111",
+        "header_bg": "#222222",
+        "header_text": "#eeeeee",
+        "progress_bg": "#0a0a0a",
+        "progress_chunk": "#666666",
+        "tab_bg": "#1a1a1a",
+        "tab_selected": "#0066cc",
+        "toolbar_bg": "#000000",
+        "toolbar_border": "#2a2a2a",
+        "status_bg": "#000000",
+        "status_text": "#cccccc",
+        "green": "#22c55e",
+        "orange": "#f59e0b",
+        "red": "#ef4444",
+        "blue": "#3b82f6",
+    },
+}
+
+
+def get_stylesheet(theme_name="Dark Blue"):
+    """Generate stylesheet for the specified theme."""
+    t = THEMES.get(theme_name, THEMES["Dark Blue"])
+    return f'''QWidget{{background:{t["bg"]};color:{t["text"]};font-family:"Segoe UI",Arial;font-size:10pt}}QMainWindow{{background:{t["window_bg"]}}}QLabel#title{{font-size:20pt;font-weight:700;color:{t["title_text"]};padding:4px}}QLabel#sectionTitle{{font-size:12pt;font-weight:700;color:{t["title_text"]};padding:6px 2px}}QLabel#muted{{color:{t["muted"]};font-size:10pt}}QFrame#panel{{background:{t["panel_bg"]};border:1px solid {t["border"]};border-radius:12px}}QFrame#card{{background:{t["card_bg"]};border:1px solid {t["border"]};border-radius:14px}}QFrame#card[tone=green]{{border-color:{t["green"]}}}QFrame#card[tone=orange]{{border-color:{t["orange"]}}}QFrame#card[tone=red]{{border-color:{t["red"]}}}QFrame#card[tone=blue]{{border-color:{t["blue"]}}}QLabel#cardTitle{{color:{t["muted"]};font-size:10pt;font-weight:600}}QLabel#cardValue{{color:{t["title_text"]};font-size:26pt;font-weight:800}}QListWidget#dashboardList{{background:{t["input_bg"]};border:1px solid {t["border"]};border-radius:9px;padding:6px}}QLabel#scanCard{{background:{t["input_bg"]};border:1px solid {t["border"]};border-radius:8px;padding:9px;color:{t["title_text"]};font-weight:700}}QLineEdit,QComboBox,QSpinBox,QTimeEdit{{background:{t["input_bg"]};border:1px solid {t["border"]};border-radius:7px;padding:8px}}QPushButton{{background:{t["button_bg"]};border:1px solid {t["border"]};border-radius:7px;padding:8px 14px;font-weight:600}}QPushButton:hover{{background:{t["button_hover"]}}}QPushButton#primary{{background:{t["primary"]}}}:hover{{background:{t["button_hover"]}}}QTableView,QTableWidget{{background:{t["bg"]};alternate-background-color:{t["table_alt"]};border:1px solid {t["border"]};border-radius:10px;gridline-color:{t["button_bg"]}}}QHeaderView::section{{background:{t["header_bg"]};color:{t["header_text"]};border:0;border-right:1px solid {t["border"]};padding:9px;font-weight:700}}QProgressBar{{background:{t["progress_bg"]};border:1px solid {t["border"]};border-radius:6px;text-align:center;min-height:20px;color:{t["text"]}}}QProgressBar::chunk{{background:{t["progress_chunk"]};border-radius:5px}}QTabWidget::pane{{border:1px solid {t["border"]};border-radius:8px}}QTabBar::tab{{background:{t["tab_bg"]};padding:10px 18px;border:1px solid {t["border"]}}}QTabBar::tab:selected{{background:{t["tab_selected"]}}}QToolBar{{background:{t["toolbar_bg"]};border-bottom:1px solid {t["toolbar_border"]};spacing:4px;padding:6px}}QToolBar QToolButton{{margin:2px;padding:7px 10px;border-radius:6px}}QStatusBar{{background:{t["status_bg"]};color:{t["status_text"]}}}'''
+
+
+QSS = get_stylesheet("Dark Blue")
 
 
 def main():
