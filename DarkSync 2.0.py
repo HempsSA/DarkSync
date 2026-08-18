@@ -2863,9 +2863,7 @@ class Main(QMainWindow):
         self.workers[j.id] = wk
         self.running_jobs.add(j.id)
 
-        # Prevent animated/indeterminate progress bar.
-        self.prog.setRange(0, 0)  # Indeterminate mode for scanning
-        self.prog.setValue(0)
+        # Hide progress bar initially - will show during compare/sync phases
         self.prog.hide()
 
         th.start()
@@ -2896,11 +2894,8 @@ class Main(QMainWindow):
             scanning = True
 
         if scanning or not total:
-            # Show indeterminate progress during scanning so users know work is happening
-            self.prog.setRange(0, 0)  # Indeterminate mode
-            self.prog.setValue(0)
-            self.prog.setFormat(f"{text} (working...)")
-            self.prog.show()  # Keep visible during scanning!
+            # Hide progress bar during scanning phase - no animation needed
+            self.prog.hide()
         else:
             # Determinate progress for comparing, synchronizing, recovering, etc.
             self.prog.setRange(0, total)
