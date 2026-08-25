@@ -2365,6 +2365,7 @@ class Main(QMainWindow):
         self.timer.start(15000)
 
         # ── System tray ──────────────────────────────────────
+        self._force_quit = False
         self._tray_icon = QSystemTrayIcon(QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.SP_ComputerIcon)), self)
         tray_menu = QMenu()
         tray_menu.addAction("Restore", self._restore_from_tray)
@@ -2395,6 +2396,7 @@ class Main(QMainWindow):
         self.raise_()
 
     def _quit_from_tray(self):
+        self._force_quit = True
         self._tray_icon.hide()
         self.shutting_down = True
         self.timer.stop()
@@ -3288,30 +3290,36 @@ class Main(QMainWindow):
         self.toast.show_message("Cancelling...")
 
     def closeEvent(self, event):
-        # If the window is being closed from a minimized state (e.g. via tray),
-        # skip the worker shutdown and just hide to tray.
-        if not self.isVisible():
-            event.ignore()
+        if self._force_quit:
+            self.shutting_down = True
+            self.timer.stop()
+            self.job_queue.clear()
+            for worker in list(self.workers.values()):
+                worker.cancel()
+            deadline = time.monotonic() + SHUTDOWN_TIMEOUT_SECONDS
+            for thread in list(self.threads.values()):
+                remaining_ms = max(0, int((deadline - time.monotonic()) * 1000))
+                if not thread.wait(remaining_ms):
+                    self.shutting_down = False
+                    self.toast.show_message("Close cancelled: an operation is still finishing.")
+                    event.ignore()
+                    return
+            self._tray_icon.hide()
+            try:
+                save_state(self.state)
+            except OSError:
+                pass
+            event.accept()
             return
-        self.shutting_down = True
-        self.timer.stop()
-        self.job_queue.clear()
-        for worker in list(self.workers.values()):
-            worker.cancel()
-        deadline = time.monotonic() + SHUTDOWN_TIMEOUT_SECONDS
-        for thread in list(self.threads.values()):
-            remaining_ms = max(0, int((deadline - time.monotonic()) * 1000))
-            if not thread.wait(remaining_ms):
-                self.shutting_down = False
-                self.toast.show_message("Close cancelled: an operation is still finishing.")
-                event.ignore()
-                return
-        self._tray_icon.hide()
-        try:
-            save_state(self.state)
-        except OSError:
-            pass
-        event.accept()
+        # Hide to tray instead of closing
+        event.ignore()
+        self.hide()
+        self._tray_icon.showMessage(
+            APP,
+            f"{APP} is running in the system tray.",
+            QSystemTrayIcon.Information,
+            2000,
+        )
 
     @Slot(str)
     def cleanup(self, jid):

@@ -2114,6 +2114,7 @@ class Main(QMainWindow):
         self.timer.start(15000)
 
         # ── System tray ──────────────────────────────────────
+        self._force_quit = False
         self._tray_icon = QSystemTrayIcon(QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.SP_ComputerIcon)), self)
         tray_menu = QMenu()
         tray_menu.addAction("Restore", self._restore_from_tray)
@@ -2143,7 +2144,23 @@ class Main(QMainWindow):
         self.activateWindow()
         self.raise_()
 
+    def closeEvent(self, event):
+        if self._force_quit:
+            self._tray_icon.hide()
+            event.accept()
+            return
+        # Hide to tray instead of closing
+        event.ignore()
+        self.hide()
+        self._tray_icon.showMessage(
+            APP,
+            f"{APP} is running in the system tray.",
+            QSystemTrayIcon.Information,
+            2000,
+        )
+
     def _quit_from_tray(self):
+        self._force_quit = True
         self._tray_icon.hide()
         qApp.quit()
 
