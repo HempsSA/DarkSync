@@ -1,3 +1,52 @@
-The provided input appears to have malformed file paths and incomplete information. The modified file is listed as just `"DarkSync` which is not a valid file path. Without clear information about actual file changes that would require gitignore entries, and given the incomplete nature of the input, no specific ignore rules can be determined.
+# Microsoft Office temp files
+~$*
+~*.docx
+~*.xlsx
+~*.pptx
+.~lock.*
+*.tmp
+~WRL*.tmp
+*.asd
+*.temp
 
-Output: (empty)
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+.venv/
+venv/
+env/
+
+# Logs
+logs/
+
+# DarkSync runtime data (unique per installation)
+darksync_jobs.json
+darksync_history.json
+*.py.backup
+.darksync_guard/
+.darksync_undo/
+.darksync_*
+*.darksync_tmp_*
+
+# Codebuff metadata
+.freebuff/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Windows system folders
+$Recycle.Bin/
+System Volume Information/
+$WINDOWS.~BT/
+$WinREAgent/
+hiberfil.sys
+pagefile.sys
+swapfile.sys
