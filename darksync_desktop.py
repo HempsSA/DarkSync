@@ -2366,7 +2366,9 @@ class Main(QMainWindow):
 
         # ── System tray ──────────────────────────────────────
         self._force_quit = False
-        self._tray_icon = QSystemTrayIcon(QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.SP_ComputerIcon)), self)
+        icon_path = RUN_DIR / "darksync_icon.png"
+        tray_pixmap = QIcon(str(icon_path)) if icon_path.exists() else QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.SP_ComputerIcon))
+        self._tray_icon = QSystemTrayIcon(tray_pixmap, self)
         tray_menu = QMenu()
         tray_menu.addAction("Restore", self._restore_from_tray)
         tray_menu.addSeparator()
@@ -2375,6 +2377,7 @@ class Main(QMainWindow):
         self._tray_icon.activated.connect(self._on_tray_activated)
         self._tray_icon.setToolTip(f"{APP} {VERSION}")
         self._tray_icon.show()
+        QApplication.instance().installEventFilter(self)
 
     def changeEvent(self, event):
         if event.type() == event.Type.WindowStateChange and self.isMinimized():
@@ -2388,6 +2391,23 @@ class Main(QMainWindow):
             )
             return
         super().changeEvent(event)
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtGui import QCloseEvent
+        if isinstance(event, QCloseEvent) and obj is self:
+            if self._force_quit:
+                self._tray_icon.hide()
+                return False
+            event.ignore()
+            self.hide()
+            self._tray_icon.showMessage(
+                APP,
+                f"{APP} is running in the system tray.",
+                QSystemTrayIcon.Information,
+                2000,
+            )
+            return True
+        return super().eventFilter(obj, event)
 
     def _restore_from_tray(self):
         self.show()
@@ -3311,15 +3331,9 @@ class Main(QMainWindow):
                 pass
             event.accept()
             return
-        # Hide to tray instead of closing
+        # Hide to tray instead of closing (eventFilter also catches this)
         event.ignore()
         self.hide()
-        self._tray_icon.showMessage(
-            APP,
-            f"{APP} is running in the system tray.",
-            QSystemTrayIcon.Information,
-            2000,
-        )
 
     @Slot(str)
     def cleanup(self, jid):

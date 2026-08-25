@@ -2115,7 +2115,9 @@ class Main(QMainWindow):
 
         # ── System tray ──────────────────────────────────────
         self._force_quit = False
-        self._tray_icon = QSystemTrayIcon(QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.SP_ComputerIcon)), self)
+        icon_path = RUN_DIR / "darksync_icon.png"
+        tray_pixmap = QIcon(str(icon_path)) if icon_path.exists() else QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.SP_ComputerIcon))
+        self._tray_icon = QSystemTrayIcon(tray_pixmap, self)
         tray_menu = QMenu()
         tray_menu.addAction("Restore", self._restore_from_tray)
         tray_menu.addSeparator()
@@ -2124,6 +2126,8 @@ class Main(QMainWindow):
         self._tray_icon.activated.connect(self._on_tray_activated)
         self._tray_icon.setToolTip(f"{APP} {VERSION}")
         self._tray_icon.show()
+        # Install event filter to catch close on all child widgets too
+        QApplication.instance().installEventFilter(self)
 
     def changeEvent(self, event):
         if event.type() == event.Type.WindowStateChange and self.isMinimized():
@@ -2138,26 +2142,37 @@ class Main(QMainWindow):
             return
         super().changeEvent(event)
 
-    def _restore_from_tray(self):
-        self.show()
-        self.setWindowState(Qt.WindowNoState)
-        self.activateWindow()
-        self.raise_()
+    def eventFilter(self, obj, event):
+        # Intercept QCloseEvent for the main window
+        from PySide6.QtGui import QCloseEvent
+        if isinstance(event, QCloseEvent) and obj is self:
+            if self._force_quit:
+                self._tray_icon.hide()
+                return False
+            event.ignore()
+            self.hide()
+            self._tray_icon.showMessage(
+                APP,
+                f"{APP} is running in the system tray.",
+                QSystemTrayIcon.Information,
+                2000,
+            )
+            return True
+        return super().eventFilter(obj, event)
 
     def closeEvent(self, event):
         if self._force_quit:
             self._tray_icon.hide()
             event.accept()
             return
-        # Hide to tray instead of closing
         event.ignore()
         self.hide()
-        self._tray_icon.showMessage(
-            APP,
-            f"{APP} is running in the system tray.",
-            QSystemTrayIcon.Information,
-            2000,
-        )
+
+    def _restore_from_tray(self):
+        self.show()
+        self.setWindowState(Qt.WindowNoState)
+        self.activateWindow()
+        self.raise_()
 
     def _quit_from_tray(self):
         self._force_quit = True
