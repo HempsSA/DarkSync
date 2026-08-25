@@ -2,6 +2,16 @@
 
 A comprehensive folder comparison and synchronization utility built with Python and PySide6, featuring multi-job management, scheduling, ransomware protection, system tray integration, and advanced recovery capabilities.
 
+## Screenshots
+
+| Main Dashboard | Job Setup |
+|:---:|:---:|
+| ![Main Dashboard](screenshots/dashboard.png) | ![Job Setup](screenshots/job_setup.png) |
+| Synchronization | System Tray |
+| ![Synchronization](screenshots/sync.png) | ![System Tray](screenshots/system_tray.png) |
+
+> **Note**: Add your own screenshots by placing PNG files in the `screenshots/` folder with these names: `dashboard.png`, `job_setup.png`, `sync.png`, `system_tray.png`.
+
 ## Features
 
 ### Core Functionality
@@ -125,10 +135,17 @@ DarkSync/
 ├── DarkSync 2.0.py              # Main application (PySide6)
 ├── darksync_desktop.py          # Standalone desktop edition (PySide6)
 ├── darksync_icon.png            # System tray icon
+├── icon_main.png                # Shortcut icon — main edition
+├── icon_main.ico                # Shortcut icon — main edition (ICO)
+├── icon_desktop.png             # Shortcut icon — desktop edition
+├── icon_desktop.ico             # Shortcut icon — desktop edition (ICO)
 ├── setup.bat                    # Fresh Windows installer
 ├── update.bat                   # Windows updater (auto-stash)
 ├── update.sh                    # macOS/Linux updater (auto-stash)
+├── create_shortcuts.bat         # Create Desktop shortcuts
+├── create_shortcuts.ps1         # PowerShell shortcut creator
 ├── requirements.txt             # Python dependencies
+├── screenshots/                 # Dashboard and UI screenshots
 ├── DAILY_RUN_GUIDE.md           # Automated daily run guide
 ├── README.md                    # This file
 ├── .gitignore                   # Git exclusions
