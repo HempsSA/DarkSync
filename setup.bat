@@ -51,7 +51,7 @@ for /f "tokens=*" %%v in ('%PYTHON% --version 2^>^&1') do set "PYVER=%%v"
 echo [i] %PYVER%
 echo.
 
-:: ── Check if folder already exists ─────────────────────────────
+:: ── Check if folder already has a git repo ─────────────────────
 if exist "%INSTALL_DIR%\.git" (
     echo [!] %INSTALL_DIR% already contains a DarkSync git repository.
     echo.
@@ -71,23 +71,44 @@ if exist "%INSTALL_DIR%\.git" (
     goto :install_deps
 )
 
+:: ── Folder exists but is not a git repo ────────────────────────
 if exist "%INSTALL_DIR%" (
-    echo [!] %INSTALL_DIR% exists but is not a git repo.
-    echo     The folder will be used as-is. Existing files will not be deleted.
+    echo [!] %INSTALL_DIR% exists but is not a git repository.
     echo.
-    mkdir "%INSTALL_DIR%" 2>nul
-) else (
-    echo [v] Creating %INSTALL_DIR%...
-    mkdir "%INSTALL_DIR%"
+    set /p "CHOICE=     Initialize git and pull DarkSync into it? (Y/N): "
+    if /i "!CHOICE!"=="Y" (
+        cd /d "%INSTALL_DIR%"
+        git init
+        git remote add origin https://github.com/HempsSA/DarkSync.git
+        git fetch origin
+        git checkout -b main origin/main
+        goto :install_deps
+    )
+    echo [i] Skipping. Installing dependencies only.
+    goto :install_deps
 )
 
-:: ── Clone ───────────────────────────────────────────────────────
+:: ── Fresh install — clone into a temp folder then move ─────────
 echo [v] Cloning DarkSync repository...
-git clone https://github.com/HempsSA/DarkSync.git "%INSTALL_DIR%"
+
+:: git clone into a temp sibling directory, then move contents
+set "TEMP_CLONE=%INSTALL_DIR%_clone_%RANDOM%"
+git clone https://github.com/HempsSA/DarkSync.git "%TEMP_CLONE%"
 if errorlevel 1 (
     echo [X] Clone failed. Check your internet connection.
+    rmdir /s /q "%TEMP_CLONE%" 2>nul
     exit /b 1
 )
+
+:: Move contents from temp clone into the target directory
+mkdir "%INSTALL_DIR%" 2>nul
+xcopy "%TEMP_CLONE%\*" "%INSTALL_DIR%\" /E /Y /Q >nul
+if errorlevel 1 (
+    echo [X] Failed to move files into %INSTALL_DIR%.
+    rmdir /s /q "%TEMP_CLONE%" 2>nul
+    exit /b 1
+)
+rmdir /s /q "%TEMP_CLONE%" 2>nul
 echo.
 
 :install_deps

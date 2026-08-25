@@ -12,8 +12,27 @@ cd /d "%~dp0"
 
 :: Make sure this is a git repo
 if not exist ".git" (
-    echo [X] Not a git repository. Run 'git init' and add your remote first.
-    exit /b 1
+    echo [!] Not a git repository — attempting to recover...
+    echo.
+
+    :: Try to find git remote URL from setup history or hardcode known remote
+    set "REMOTE_URL=https://github.com/HempsSA/DarkSync.git"
+
+    echo [v] Initializing git repo...
+    git init
+    git remote add origin "!REMOTE_URL!"
+    git fetch origin
+    if errorlevel 1 (
+        echo [X] Could not connect to remote. Check your internet connection.
+        exit /b 1
+    )
+    git checkout -b main origin/main
+    if errorlevel 1 (
+        echo [X] Could not set up branch. Try running setup.bat instead.
+        exit /b 1
+    )
+    echo [i] Repo recovered from !REMOTE_URL!
+    echo.
 )
 
 :: Check for origin remote
