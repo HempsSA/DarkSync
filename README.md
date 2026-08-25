@@ -1,6 +1,6 @@
 # DarkSync 2.0 - Multi-Job Folder Synchronization Utility
 
-A comprehensive folder comparison and synchronization utility built with Python and PySide6, featuring multi-job management, scheduling, ransomware protection, and advanced recovery capabilities.
+A comprehensive folder comparison and synchronization utility built with Python and PySide6, featuring multi-job management, scheduling, ransomware protection, system tray integration, and advanced recovery capabilities.
 
 ## Features
 
@@ -11,6 +11,7 @@ A comprehensive folder comparison and synchronization utility built with Python 
 - **Multi-threading**: Configurable worker threads (1-32) for optimized performance
 
 ### Advanced Features
+- **System Tray Integration**: Minimize to the system tray with custom icon. Both the close button (X) and minimize button hide to tray. Double-click the tray icon to restore. Right-click for Restore and Quit options.
 - **Scheduling**: Automated sync jobs with customizable timing and actions
 - **History Tracking**: Detailed logs and statistics (up to 5000 entries)
 - **Undo/Recovery**: 5-day retention period for reversed operations
@@ -30,6 +31,57 @@ Generated reports include only:
 
 *Skipped entries are intentionally excluded from reports.*
 
+## Editions
+
+### DarkSync 2.0 (Main)
+The primary PySide6 desktop application with full toolbar, tabbed interface, and theme support.
+
+```bash
+python "DarkSync 2.0.py"
+```
+
+### DarkSync Desktop
+A standalone PySide6 edition with a sidebar-based visual design. Includes all features of the main edition — filesystem operations, scheduling, Guard, recovery, notifications — running locally in a single process.
+
+```bash
+python darksync_desktop.py
+```
+
+Both editions support system tray minimize-to-tray with a custom sync icon.
+
+## Quick Start
+
+### Fresh Install (Windows)
+
+Run the setup script on a new machine:
+
+```cmd
+setup.bat                        Install to C:\DarkSync
+setup.bat D:\Tools\DarkSync      Install to a custom location
+```
+
+This will:
+1. Check for Git and Python
+2. Clone the repository
+3. Install Python dependencies
+4. Optionally launch DarkSync
+
+### Update Existing Install
+
+```cmd
+update.bat            Pull latest changes (Windows)
+update.bat --check    Only check for updates
+```
+
+```bash
+./update.sh           Pull latest changes (macOS/Linux)
+./update.sh --check   Only check for updates
+```
+
+The update scripts automatically stash and restore any local changes, so your job configurations and customizations are preserved.
+
+If `.git` is missing (e.g. after a manual copy), the scripts will automatically recover by re-initializing from the remote.
+
 ## Requirements
 
 - Python 3.8+
@@ -38,7 +90,7 @@ Generated reports include only:
 
 ### Install Dependencies
 ```bash
-pip install PySide6
+pip install -r requirements.txt
 ```
 
 ## Configuration
@@ -64,29 +116,27 @@ The application stores configuration and data in the following files (located in
 - `.darksync_undo/` - Undo/recovery data
 - `.darksync_guard/` - Guard baseline snapshots (SQLite)
 
-## Usage
-
-Run the application:
-```bash
-python "DarkSync 2.0.py"
-```
-
-Or if frozen as executable:
-```bash
-./DarkSync\ 2.0
-```
+*These files are unique per installation and are excluded from the git repository.*
 
 ## Project Structure
 
 ```
-/workspace/
-├── DarkSync 2.0.py          # Main application file
-├── DarkSync 2.0.py.backup   # Backup of main application
-├── darksync_jobs.json       # Job configurations (generated at runtime)
-├── darksync_history.json    # History data (generated at runtime)
-├── logs/                    # Log files directory (generated at runtime)
-├── .darksync_undo/          # Undo recovery data (generated at runtime)
-└── .darksync_guard/         # Guard baselines (generated at runtime)
+DarkSync/
+├── DarkSync 2.0.py              # Main application (PySide6)
+├── darksync_desktop.py          # Standalone desktop edition (PySide6)
+├── darksync_icon.png            # System tray icon
+├── setup.bat                    # Fresh Windows installer
+├── update.bat                   # Windows updater (auto-stash)
+├── update.sh                    # macOS/Linux updater (auto-stash)
+├── requirements.txt             # Python dependencies
+├── DAILY_RUN_GUIDE.md           # Automated daily run guide
+├── README.md                    # This file
+├── .gitignore                   # Git exclusions
+├── darksync_jobs.json           # Job configs (runtime, not tracked)
+├── darksync_history.json        # History data (runtime, not tracked)
+├── logs/                        # Log files (runtime, not tracked)
+├── .darksync_undo/              # Undo data (runtime, not tracked)
+└── .darksync_guard/             # Guard baselines (runtime, not tracked)
 ```
 
 ### Default Exclusion Patterns
@@ -103,23 +153,50 @@ The following patterns are excluded by default on Windows environments:
 
 Additional patterns can be added in the job configuration using semicolon-separated glob patterns.
 
-## Version
+## System Tray
 
-**Current Version**: 2.6.5
+Both editions minimize to the system tray using a custom sync icon:
 
-### Recent Changes (v2.6.5)
-- Removed two-week dashboard calendar/history
-- Generated reports include only Failed, Cancelled, Not selected, and Conflict entries
-- Skipped entries excluded from generated report files
-- Removed scrolling/indeterminate blue progress bar during scanning
-- Scanning left/right labels remain visible side by side
-- Normal determinate progress bar for compare, sync, and recovery operations
+- **Close button (X)** → Hides to tray (does not exit)
+- **Minimize button** → Hides to tray
+- **Double-click tray icon** → Restores the window
+- **Right-click tray icon** → Menu with Restore and Quit
+- **Tray → Quit** → Actually exits the application
+
+This ensures background scheduled jobs and Guard monitoring continue running even when the window is hidden.
+
+## Multi-Location Deployment
+
+DarkSync can be deployed across multiple machines using this git repository:
+
+1. **Install** on each machine using `setup.bat` (Windows) or clone the repo manually
+2. **Update** all locations by running `update.bat` or `./update.sh` — the scripts auto-stash local changes and pull the latest code
+3. Each installation has its own independent `darksync_jobs.json` and `darksync_history.json` — job configurations are not shared between locations
 
 ## Platform Support
 
 - Windows
 - macOS
 - Linux
+
+## Version
+
+**Current Version**: 2.6.5
+
+### Recent Changes
+- System tray integration with custom icon — minimize to tray, close-to-tray, double-click to restore
+- Standalone desktop edition (`darksync_desktop.py`)
+- Windows installer (`setup.bat`) and updater (`update.bat`)
+- macOS/Linux updater (`update.sh`) with auto-stash and `.git` recovery
+- Multi-location deployment support via GitHub repository
+
+### Previous Changes (v2.6.5)
+- Removed two-week dashboard calendar/history
+- Generated reports include only Failed, Cancelled, Not selected, and Conflict entries
+- Skipped entries excluded from generated report files
+- Removed scrolling/indeterminate blue progress bar during scanning
+- Scanning left/right labels remain visible side by side
+- Normal determinate progress bar for compare, sync, and recovery operations
 
 ## License
 
