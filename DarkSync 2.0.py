@@ -51,7 +51,7 @@ from PySide6.QtCore import (
     QTime,
     QUrl,
 )
-from PySide6.QtGui import QAction, QActionGroup, QColor, QDesktopServices, QShortcut, QKeySequence, QPalette, QBrush
+from PySide6.QtGui import QAction, QActionGroup, QColor, QDesktopServices, QIcon, QShortcut, QKeySequence, QPalette, QBrush
 from PySide6.QtWidgets import *
 
 qApp = QApplication.instance()  # Global reference for exit calls
@@ -2112,6 +2112,44 @@ class Main(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_schedules)
         self.timer.start(15000)
+
+        # ── System tray ──────────────────────────────────────
+        self._tray_icon = QSystemTrayIcon(QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.SP_ComputerIcon)), self)
+        tray_menu = QMenu()
+        tray_menu.addAction("Restore", self._restore_from_tray)
+        tray_menu.addSeparator()
+        tray_menu.addAction("Quit", self._quit_from_tray)
+        self._tray_icon.setContextMenu(tray_menu)
+        self._tray_icon.activated.connect(self._on_tray_activated)
+        self._tray_icon.setToolTip(f"{APP} {VERSION}")
+        self._tray_icon.show()
+
+    def changeEvent(self, event):
+        if event.type() == event.Type.WindowStateChange and self.isMinimized():
+            event.accept()
+            self.hide()
+            self._tray_icon.showMessage(
+                APP,
+                f"{APP} is minimized to the system tray.",
+                QSystemTrayIcon.Information,
+                2000,
+            )
+            return
+        super().changeEvent(event)
+
+    def _restore_from_tray(self):
+        self.show()
+        self.setWindowState(Qt.WindowNoState)
+        self.activateWindow()
+        self.raise_()
+
+    def _quit_from_tray(self):
+        self._tray_icon.hide()
+        qApp.quit()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.DoubleClick:
+            self._restore_from_tray()
 
     def ui(self):
         # Create menu bar with Themes menu
