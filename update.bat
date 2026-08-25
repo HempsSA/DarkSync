@@ -15,7 +15,6 @@ if not exist ".git" (
     echo [!] Not a git repository — attempting to recover...
     echo.
 
-    :: Try to find git remote URL from setup history or hardcode known remote
     set "REMOTE_URL=https://github.com/HempsSA/DarkSync.git"
 
     echo [v] Initializing git repo...
@@ -80,12 +79,38 @@ if "%~1"=="--check" (
     exit /b 0
 )
 
+:: ── Pull with stash if needed ──────────────────────────────────
 echo.
+set "STASHED=0"
+git diff --quiet
+if errorlevel 1 (
+    echo [v] Local changes detected — stashing before pull...
+    git stash push -m "auto-stash by update.bat"
+    if errorlevel 1 (
+        echo [X] Could not stash local changes.
+        exit /b 1
+    )
+    set "STASHED=1"
+)
+
 echo Pulling...
 git pull origin "%BRANCH%"
 if errorlevel 1 (
-    echo [X] Pull failed. You may have local conflicts.
+    echo [X] Pull failed.
+    if "!STASHED!"=="1" (
+        echo [v] Restoring stashed changes...
+        git stash pop
+    )
     exit /b 1
+)
+
+:: Restore stashed changes if we stashed
+if "!STASHED!"=="1" (
+    echo [v] Restoring stashed changes...
+    git stash pop
+    if errorlevel 1 (
+        echo [!] Stash pop had conflicts. Run 'git stash drop' to discard.
+    )
 )
 
 :: Show updated commit

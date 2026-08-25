@@ -64,9 +64,30 @@ if [ "${1:-}" = "--check" ]; then
     exit 0
 fi
 
+# ── Pull with stash if needed ──────────────────────────────────
 echo ""
+STASHED=0
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+    echo "[v] Local changes detected — stashing before pull..."
+    git stash push -m "auto-stash by update.sh"
+    STASHED=1
+fi
+
 echo "Pulling..."
-git pull origin "$CURRENT_BRANCH"
+if ! git pull origin "$CURRENT_BRANCH"; then
+    echo "[X] Pull failed."
+    if [ "$STASHED" = "1" ]; then
+        echo "[v] Restoring stashed changes..."
+        git stash pop
+    fi
+    exit 1
+fi
+
+# Restore stashed changes if we stashed
+if [ "$STASHED" = "1" ]; then
+    echo "[v] Restoring stashed changes..."
+    git stash pop || echo "[!] Stash pop had conflicts. Run 'git stash drop' to discard."
+fi
 
 echo ""
 echo "[i] Updated to $(git rev-parse --short HEAD)."
