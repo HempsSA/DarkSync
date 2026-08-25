@@ -124,6 +124,16 @@ if errorlevel 1 (
 )
 echo.
 
+:: ── Desktop shortcuts ──────────────────────────────────────────
+if exist "%INSTALL_DIR%\create_shortcuts.ps1" (
+    set /p "SHORTCUTS=  Create Desktop shortcuts? (Y/N): "
+    if /i "!SHORTCUTS!"=="Y" (
+        echo [v] Creating Desktop shortcuts...
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALL_DIR%\create_shortcuts.ps1"
+    )
+)
+echo.
+
 :: ── Done ───────────────────────────────────────────────────────
 echo ========================================
 echo   Setup complete!
@@ -138,6 +148,10 @@ echo.
 echo   To launch the Desktop edition:
 echo     cd "%INSTALL_DIR%"
 echo     python darksync_desktop.py
+echo.
+echo   To create Desktop shortcuts later:
+echo     cd "%INSTALL_DIR%"
+echo     create_shortcuts.bat
 echo.
 echo   To update later:
 echo     cd "%INSTALL_DIR%"
