@@ -1265,11 +1265,12 @@ class SyncWorker(QObject):
             R, Rfolders, re = rf.result()
 
         if le and guard_check:
-            raise RuntimeError(
-                "Source scan errors prevent a trusted ransomware check. "
-                "To allow skipped/unreadable entries, enable Ignore all scan errors or "
-                "Ignore permission errors in Job settings > Ransomware Guard. Details: "
-                + " | ".join(le[:MAX_SCAN_ERROR_DETAILS])
+            self.progress.emit(
+                self.job.id,
+                len(L),
+                len(L),
+                f"Warning: {len(le)} source scan error(s) — guard result may be incomplete. "
+                + " | ".join(le[:MAX_SCAN_ERROR_DETAILS]),
             )
 
         if guard_check:
@@ -1278,6 +1279,8 @@ class SyncWorker(QObject):
             self.guard_snapshot = (files, folders)
             self.guard_result = guard_evaluate(self.job, files, folders)
             self.guard_result["manually_approved"] = override
+            if le:
+                self.guard_result["scan_errors"] = le
 
             self.progress.emit(
                 self.job.id,
