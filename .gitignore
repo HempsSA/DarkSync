@@ -50,3 +50,10 @@ $WinREAgent/
 hiberfil.sys
 pagefile.sys
 swapfile.sys
+
+# Inno Setup build artifacts
+dist/
+*.exe
+compiler_output.txt
+IS-*.tmp
+setup-*.tmp

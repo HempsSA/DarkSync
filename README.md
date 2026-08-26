@@ -61,7 +61,20 @@ Both editions support system tray minimize-to-tray with a custom sync icon.
 
 ## Quick Start
 
-### Fresh Install (Windows)
+### Fresh Install (Windows) — Inno Setup Installer (Recommended)
+
+Download `DarkSync-2.6.5-Setup.exe` from the [Releases](https://github.com/HempsSA/DarkSync/releases) page and run it.
+
+The installer will:
+1. Verify Python 3.8+ is installed
+2. Copy application files to your chosen folder
+3. Install Python dependencies automatically
+4. Create Desktop and Start-Menu shortcuts
+5. Offer to launch DarkSync immediately
+
+> **Building the installer yourself** — see [Building the Installer](#building-the-installer) below.
+
+### Fresh Install (Windows) — Manual Setup
 
 Run the setup script on a new machine:
 
@@ -91,6 +104,42 @@ update.bat --check    Only check for updates
 The update scripts automatically stash and restore any local changes, so your job configurations and customizations are preserved.
 
 If `.git` is missing (e.g. after a manual copy), the scripts will automatically recover by re-initializing from the remote.
+
+## Building the Installer
+
+An [Inno Setup](https://jrsoftware.org/isdl.php) script is included in the `installer/` folder.
+
+### Prerequisites
+
+- **Windows 10/11** (build 17763+)
+- **Python 3.8+** installed and in PATH
+- **Inno Setup 6+** — [download here](https://jrsoftware.org/isdl.php)
+
+### Build Steps
+
+**Option A — Double-click** (easiest):
+
+Double-click `build_installer.bat` from the repo root. It auto-discovers the Inno Setup compiler.
+
+**Option B — Command line**:
+
+```cmd
+:: From the repo root:
+iscc installer\DarkSync.iss
+```
+
+The compiled installer will appear in `dist/DarkSync-2.6.5-Setup.exe`.
+
+### What the installer does
+
+1. **Pre-flight check** — Verifies Python 3.8+ is present; offers to open the download page if not.
+2. **File copy** — Copies all application files, icons, scripts, and docs to the chosen folder.
+3. **Dependency install** — Runs `pip install -r requirements.txt` silently in the background.
+4. **Shortcuts** — Creates Start-Menu shortcuts for both editions plus Desktop shortcuts via `create_shortcuts.ps1`.
+5. **Post-install** — Offers to launch DarkSync 2.0 or DarkSync Desktop.
+6. **Uninstaller** — Registers in *Add or Remove Programs* with full cleanup.
+
+> **Tip:** Inno Setup can also build silent/unattended installs (`/SILENT` or `/VERYSILENT`) for enterprise deployment.
 
 ## Requirements
 
@@ -140,11 +189,14 @@ DarkSync/
 ├── icon_desktop.png             # Shortcut icon — desktop edition
 ├── icon_desktop.ico             # Shortcut icon — desktop edition (ICO)
 ├── setup.bat                    # Fresh Windows installer
+├── build_installer.bat          # Build Inno Setup installer (double-click)
 ├── update.bat                   # Windows updater (auto-stash)
 ├── update.sh                    # macOS/Linux updater (auto-stash)
 ├── create_shortcuts.bat         # Create Desktop shortcuts
 ├── create_shortcuts.ps1         # PowerShell shortcut creator
 ├── requirements.txt             # Python dependencies
+├── installer/
+│   └── DarkSync.iss             # Inno Setup installer script
 ├── screenshots/                 # Dashboard and UI screenshots
 ├── DAILY_RUN_GUIDE.md           # Automated daily run guide
 ├── README.md                    # This file
@@ -204,6 +256,7 @@ DarkSync can be deployed across multiple machines using this git repository:
 - System tray integration with custom icon — minimize to tray, close-to-tray, double-click to restore
 - Standalone desktop edition (`darksync_desktop.py`)
 - Windows installer (`setup.bat`) and updater (`update.bat`)
+- Inno Setup installer (`installer/DarkSync.iss`) — proper Windows setup wizard with dependency install
 - macOS/Linux updater (`update.sh`) with auto-stash and `.git` recovery
 - Multi-location deployment support via GitHub repository
 
