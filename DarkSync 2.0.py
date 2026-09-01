@@ -1528,7 +1528,7 @@ class ItemModel(QAbstractTableModel):
 
     def set_items(self, items):
         self.beginResetModel()
-        self.items = items
+        self.items = [i for i in items if i.status != Status.EQUAL]
         self.endResetModel()
 
     def rowCount(self, p=QModelIndex()):
@@ -3038,10 +3038,11 @@ class Main(QMainWindow):
 
         self.active_items = items
         self.model.set_items(items)
+        shown = [i for i in items if i.status != Status.EQUAL]
 
         self.summary.setText(
-            f"{j.name if j else jid}: {len(items)} items, "
-            f"{sum(x.action not in ('Skip', 'Conflict') for x in items)} actions"
+            f"{j.name if j else jid}: {len(shown)} items, "
+            f"{sum(x.action not in ('Skip', 'Conflict') for x in shown)} actions"
         )
 
         self.left_scan.setText("Scanning left: Complete")

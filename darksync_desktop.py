@@ -3389,8 +3389,9 @@ class Main(QMainWindow):
         self.results_jid = jid
         self.active_items = items
         self.model.set_items(items)
-        self.summary.setText(f"{j.name if j else jid}: {len(items)} items, "
-                             f"{sum(x.action not in ('Skip', 'Conflict') for x in items)} actions")
+        shown = [i for i in items if i.status != Status.EQUAL]
+        self.summary.setText(f"{j.name if j else jid}: {len(shown)} items, "
+                             f"{sum(x.action not in ('Skip', 'Conflict') for x in shown)} actions")
         self.left_scan.setText("Scanning left: Complete")
         self.right_scan.setText("Scanning right: Complete")
 
